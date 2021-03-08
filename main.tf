@@ -137,6 +137,31 @@ resource "aws_instance" "wp_ec2" {
     device_index = 0
     network_interface_id = aws_network_interface.wp_public_nic.id
   }
+  # Install docker and configure wp webserver and mariadb 
+  user_data = <<-EOF
+    #!/bin/bash
+    #
+    # 1. Install docker
+    # 
+    sudo apt update -y
+    sudo apt upgrade -y
+    sudo apt install apt-transport-https ca-certificates curl gnupg -y
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt update -y
+    sudo apt install docker-ce docker-ce-cli containerd.io -y
+    #
+    # 2. Spin-Up Mariadb Container
+    #
+    mkdir -p ~/worpress/database
+    mkdir -p ~/wordpress/html
+    sudo docker run -e MYSQL_ROOT_PASSWORD=password -e MYSQL_USER=wpuser -e MYSQL_PASSWORD=password -e MYSQL_DATABASE=wpdb -v /home/ubuntu/wordpress/database:/var/lib/mysql --name wordpressdb -d mariadb
+    #
+    # 3. Spin-Up Wordpress Image
+    #
+    sudo docker run -e WORDPRESS_DB_USER=wpuser -e WORDPRESS_DB_PASSWORD=password -e WORDPRESS_DB_NAME=wpdb -p 80:80 -v /home/ubuntu/wordpress/html:/var/www/html --link wordpressdb:mysql --name wpcontainer -d wordpress
+    EOF
+
   tags = {
     Name = "wp-ec2"
   }
